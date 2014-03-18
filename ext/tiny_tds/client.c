@@ -62,6 +62,8 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
      break;
    case SYBEICONVI:
      return INT_CANCEL;
+   case SYBEICONVIU:
+     return INT_CANCEL;
    case SYBEFCON:
    case SYBESOCK:
    case SYBECONN:
@@ -89,6 +91,14 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
      if (userdata && (userdata->dbsqlok_sent || userdata->dbcancel_sent))
        return INT_CANCEL;
      cancel = 1;
+     break;
+   }
+   case SYBEBTOK: {
+     return_value = INT_CANCEL;
+     break;
+   }
+   case SYBEDDNE: {
+     return_value = INT_CANCEL;
      break;
    }
  }
