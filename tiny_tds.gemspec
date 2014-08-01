@@ -6,8 +6,8 @@ Gem::Specification.new do |s|
   s.name          = 'tiny_tds'
   s.version       = TinyTds::VERSION
   s.platform      = Gem::Platform::RUBY
-  s.authors       = ['Ken Collins', 'Erik Bryn']
-  s.email         = ['ken@metaskills.net']
+  s.authors       = ['Ken Collins', 'Erik Bryn', 'Will Bond']
+  s.email         = ['ken@metaskills.net', 'will@wbond.net']
   s.homepage      = 'http://github.com/rails-sqlserver/tiny_tds'
   s.summary       = 'TinyTDS - A modern, simple and fast FreeTDS library for Ruby using DB-Library.'
   s.description   = 'TinyTDS - A modern, simple and fast FreeTDS library for Ruby using DB-Library. Developed for the ActiveRecord SQL Server adapter.'
@@ -18,8 +18,8 @@ Gem::Specification.new do |s|
   s.rdoc_options  = ['--charset=UTF-8']
   s.extensions    = ['ext/tiny_tds/extconf.rb']
   s.add_development_dependency 'rake',          '~> 0.9.2'
-  s.add_development_dependency 'mini_portile',  '~> 0.5.0'
-  s.add_development_dependency 'rake-compiler', '0.8.1'
+  s.add_development_dependency 'mini_portile',  "~> 0.5.1"
+  s.add_development_dependency 'rake-compiler', "~> 0.9.1"
   s.add_development_dependency 'activesupport', '~> 3.0'
   s.add_development_dependency 'minitest'
   s.add_development_dependency 'connection_pool', '~> 0.9.2'
