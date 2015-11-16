@@ -15,17 +15,19 @@ class ThreadTest < TinyTds::TestCase
       @pool = ConnectionPool.new(:size => @poolsize, :timeout => 5) { new_connection }
     end
 
+    after do
+      @pool.shutdown { |c| c.close }
+    end
+
     it 'should finish faster in parallel' do
+      skip if sqlserver_azure?
       x = Benchmark.realtime do
         threads = []
         @numthreads.times do |i|
           start = Time.new
           threads << Thread.new do
             ts = Time.new
-            @pool.with do |client|
-              result = client.execute @query
-              result.each { |r| puts r }
-            end
+            @pool.with { |c| c.execute(@query).do }
             te = Time.new
             @logger.info "Thread #{i} finished in #{te - ts} thread seconds, #{te - start} real seconds"
           end
@@ -63,8 +65,8 @@ class ThreadTest < TinyTds::TestCase
       thread = Thread.new do
         @pool.with do |client|
           begin
-            # The default query timeout is 5, so this will last longer than that
-            result = client.execute "waitfor delay '00:00:07'; select db_name()"
+            delay = ('0' + (connection_timeout + 2).to_s)[-2,2] # Two seconds longer than default.
+            result = client.execute "waitfor delay '00:00:#{delay}'; select db_name()"
             result.each { |r| puts r }
           rescue TinyTds::Error => e
             if e.message == 'Adaptive Server connection timed out'
@@ -75,8 +77,8 @@ class ThreadTest < TinyTds::TestCase
       end
 
       timer_thread = Thread.new do
-        # Sleep until after the timeout (of 5) should have been reached
-        sleep(6)
+        # Sleep until after the timeout should have been reached
+        sleep(connection_timeout+2)
         if not exception
           thread.kill
           raise "Timeout passed without query timing out"
