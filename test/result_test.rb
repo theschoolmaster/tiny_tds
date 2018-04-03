@@ -122,7 +122,7 @@ class ResultTest < TinyTds::TestCase
 
     it 'must insert and find unicode data' do
       rollback_transaction(@client) do
-        text = '✓'
+        text = '😍'
         @client.execute("DELETE FROM [datatypes] WHERE [nvarchar_50] IS NOT NULL").do
         @client.execute("INSERT INTO [datatypes] ([nvarchar_50]) VALUES (N'#{text}')").do
         row = @client.execute("SELECT [nvarchar_50] FROM [datatypes] WHERE [nvarchar_50] IS NOT NULL").each.first
@@ -135,10 +135,10 @@ class ResultTest < TinyTds::TestCase
         text = 'test affected rows sql'
         @client.execute("DELETE FROM [datatypes]").do
         afrows = @client.execute("SELECT @@ROWCOUNT AS AffectedRows").each.first['AffectedRows']
-        assert_instance_of Fixnum, afrows
+        ['Fixnum', 'Integer'].must_include afrows.class.name
         @client.execute("INSERT INTO [datatypes] ([varchar_50]) VALUES ('#{text}')").do
         pk1 = @client.execute(@client.identity_sql).each.first['Ident']
-        assert_instance_of Fixnum, pk1, 'we it be able to CAST to bigint'
+        ['Fixnum', 'Integer'].must_include pk1.class.name, 'we it be able to CAST to bigint'
         @client.execute("UPDATE [datatypes] SET [varchar_50] = NULL WHERE [varchar_50] = '#{text}'").do
         afrows = @client.execute("SELECT @@ROWCOUNT AS AffectedRows").each.first['AffectedRows']
         assert_equal 1, afrows
@@ -313,7 +313,7 @@ class ResultTest < TinyTds::TestCase
     it 'has properly encoded column names with symbol keys' do
       col_name = "öäüß"
       @client.execute("DROP TABLE [test_encoding]").do rescue nil
-      @client.execute("CREATE TABLE [dbo].[test_encoding] ( [#{col_name}] [nvarchar](10) NOT NULL )").do
+      @client.execute("CREATE TABLE [dbo].[test_encoding] ( [id] int NOT NULL IDENTITY(1,1) PRIMARY KEY, [#{col_name}] [nvarchar](10) NOT NULL )").do
       @client.execute("INSERT INTO [test_encoding] ([#{col_name}]) VALUES (N'#{col_name}')").do
       result = @client.execute("SELECT [#{col_name}] FROM [test_encoding]")
       row = result.each(:as => :hash, :symbolize_keys => true).first
@@ -321,7 +321,7 @@ class ResultTest < TinyTds::TestCase
       assert_equal col_name.to_sym, result.fields.first
       assert_instance_of Symbol, row.keys.first
       assert_equal col_name.to_sym, row.keys.first
-    end unless sqlserver_azure?
+    end
 
     it 'allows #return_code to work with stored procedures and reset per sql batch' do
       assert_nil @client.return_code
@@ -333,6 +333,11 @@ class ResultTest < TinyTds::TestCase
       result.each
       assert_nil @client.return_code
       assert_nil result.return_code
+    end
+
+    it 'with LOGINPROPERTY function' do
+      v = @client.execute("SELECT LOGINPROPERTY('sa', 'IsLocked') as v").first['v']
+      v.must_equal 0
     end
 
     describe 'with multiple result sets' do
@@ -573,7 +578,7 @@ class ResultTest < TinyTds::TestCase
 
       it 'returns nil for NULL' do
         value = @client.execute('SELECT NULL AS [null]').each.first['null']
-        assert_equal nil, value
+        assert_nil value
       end
 
     end
@@ -608,6 +613,46 @@ class ResultTest < TinyTds::TestCase
       end
 
       if sqlserver?
+
+        describe 'using :message_handler option' do
+          let(:messages) { Array.new }
+
+          before do
+            close_client
+            @client = new_connection message_handler: Proc.new { |m| messages << m }
+          end
+
+          after do
+            messages.clear
+          end
+
+          it 'has a message handler that responds to call' do
+            assert @client.message_handler.respond_to?(:call)
+          end
+
+          it 'calls the provided message handler when severity is 10 or less' do
+            (1..10).to_a.each do |severity|
+              messages.clear
+              msg = "Test #{severity} severity"
+              state = rand(1..255)
+              @client.execute("RAISERROR(N'#{msg}', #{severity}, #{state})").do
+              m = messages.first
+              assert_equal 1, messages.length, 'there should be one message after one raiserror'
+              assert_equal msg, m.message, 'message text'
+              assert_equal severity, m.severity, 'message severity' unless severity == 10 && m.severity.to_i == 0
+              assert_equal state, m.os_error_number, 'message state'
+            end
+          end
+
+          it 'calls the provided message handler for `print` messages' do
+            messages.clear
+            msg = 'hello'
+            @client.execute("PRINT '#{msg}'").do
+            m = messages.first
+            assert_equal 1, messages.length, 'there should be one message after one print statement'
+            assert_equal msg, m.message, 'message text'
+          end
+        end
 
         it 'must not raise an error when severity is 10 or less' do
           (1..10).to_a.each do |severity|
@@ -685,26 +730,22 @@ class ResultTest < TinyTds::TestCase
           @client.execute("DELETE FROM [datatypes] WHERE [nvarchar_50] IS NOT NULL").do
           action = lambda { @client.execute("INSERT INTO [datatypes] ([nvarchar_50]) VALUES ('#{text}')").do }
           assert_raise_tinytds_error(action) do |e|
-            e.message.must_match %r{Error converting characters into server's character set}i
-            e.severity.must_equal 4
-            e.db_error_number.must_equal 2402
+            e.message.must_match %r{Unclosed quotation mark}i
+            e.severity.must_equal 15
+            e.db_error_number.must_equal 105
           end
           assert_followup_query
         end
       end
 
       it 'errors gracefully with incorrect syntax in sp_executesql' do
-        if @client.freetds_091_or_higer?
-          action = lambda { @client.execute("EXEC sp_executesql N'this will not work'").each }
-          assert_raise_tinytds_error(action) do |e|
-            assert_match %r|incorrect syntax|i, e.message
-            assert_equal 15, e.severity
-            assert_equal 156, e.db_error_number
-          end
-          assert_followup_query
-        else
-          skip 'FreeTDS 0.91 and higher can only pass this test.'
+        action = lambda { @client.execute("EXEC sp_executesql N'this will not work'").each }
+        assert_raise_tinytds_error(action) do |e|
+          assert_match %r|incorrect syntax|i, e.message
+          assert_equal 15, e.severity
+          assert_equal 156, e.db_error_number
         end
+        assert_followup_query
       end unless sybase_ase?
 
     end

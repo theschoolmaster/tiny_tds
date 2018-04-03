@@ -1,6 +1,19 @@
 # TinyTDS - Simple and fast FreeTDS bindings for Ruby using DB-Library.
 
-[![Build Status](https://ci.appveyor.com/api/projects/status/g2bhhbsdkx0mal55/branch/master?svg=true)](https://ci.appveyor.com/project/rails-sqlserver/tiny-tds/branch/master) [![Gem Version](https://img.shields.io/badge/gem-v0.7.0-blue.svg)](https://rubygems.org/gems/tiny_tds) [![Gitter chat](https://img.shields.io/badge/%E2%8A%AA%20GITTER%20-JOIN%20CHAT%20%E2%86%92-brightgreen.svg?style=flat)](https://gitter.im/rails-sqlserver/activerecord-sqlserver-adapter)
+* [![TravisCI](https://travis-ci.org/rails-sqlserver/tiny_tds.svg?branch=master)](https://travis-ci.org/rails-sqlserver/tiny_tds) - TravisCI
+* [![CircleCI](https://circleci.com/gh/rails-sqlserver/tiny_tds/tree/master.svg?style=svg)](https://circleci.com/gh/rails-sqlserver/tiny_tds/tree/master) - CircleCI
+* [![Build Status](https://ci.appveyor.com/api/projects/status/g2bhhbsdkx0mal55/branch/master?svg=true)](https://ci.appveyor.com/project/rails-sqlserver/tiny-tds/branch/master) - Appveyor
+* [![Code Climate](https://codeclimate.com/github/rails-sqlserver/tiny_tds/badges/gpa.svg)](https://codeclimate.com/github/rails-sqlserver/tiny_tds) - Code Climate
+* [![Gem Version](https://img.shields.io/gem/v/tiny_tds.svg)](https://rubygems.org/gems/tiny_tds) - Gem Version
+* [![Dependency Status](https://dependencyci.com/github/rails-sqlserver/tiny_tds/badge)](https://dependencyci.com/github/rails-sqlserver/tiny_tds) - Dependency Status
+* [![Gitter chat](https://img.shields.io/badge/%E2%8A%AA%20GITTER%20-JOIN%20CHAT%20%E2%86%92-brightgreen.svg?style=flat)](https://gitter.im/rails-sqlserver/activerecord-sqlserver-adapter) - Community
+
+## Supporting TinyTDS/Adapter
+
+Both TinyTDS and the Rails SQL Server Adapter are MIT-licensed open source projects. Its ongoing development is made possible thanks to the support by these awesome [backers](https://github.com/rails-sqlserver/tiny_tds/blob/master/BACKERS.md). If you'd like to join them, check out our [Patreon Campaign](https://www.patreon.com/metaskills).
+
+
+## About TinyTDS
 
 The TinyTDS gem is meant to serve the extremely common use-case of connecting, querying and iterating over results to Microsoft SQL Server or Sybase databases from Ruby using the FreeTDS's DB-Library API.
 
@@ -21,29 +34,44 @@ Installing with rubygems should just work. TinyTDS is currently tested on Ruby v
 $ gem install tiny_tds
 ```
 
-If you use Windows, we pre-compile TinyTDS with static versions of FreeTDS, libiconv, and OpenSSL. On all other platforms, we will find these dependencies. If none exist, our native extension will use MiniPortile to install any missing dependencies listed above for your specific platform. These dependencies will be built and linked within the installed TinyTDS gem. Please read the MiniPortile and/or Windows sections at the end of this file for advanced configuration options past the following:
+If you use Windows, we pre-compile TinyTDS with static versions of FreeTDS and supporting libraries.
+If you're using RubyInstaller the binary gem will require that devkit is installed and in your path to operate properly.
+
+On all other platforms, we will find these dependencies. It is recommended that you install the latest FreeTDS via your method of choice. For example, here is how to install FreeTDS on Ubuntu. You might also need the `build-essential` and possibly the `libc6-dev` packages.
+
+```shell
+$ apt-get install wget
+$ apt-get install build-essential
+$ apt-get install libc6-dev
+
+$ wget http://www.freetds.org/files/stable/freetds-1.00.21.tar.gz
+$ tar -xzf freetds-1.00.21.tar.gz
+$ cd freetds-1.00.21
+$ ./configure --prefix=/usr/local --with-tdsver=7.3
+$ make
+$ make install
+```
+
+If none exist, our native extension will use MiniPortile to install any missing dependencies listed above for your specific platform. These dependencies will be built and linked within the installed TinyTDS gem. Please read the MiniPortile and/or Windows sections at the end of this file for advanced configuration options past the following:
 
 ```
---enable-system-freetds / --disable-system-freetds
---enable-system-iconv   / --disable-system-iconv
---enable-system-openssl / --disable-system-openssl
-  Force use of system or builtin freetds/iconv/openssl library.
-  Default is to prefer system libraries and fallback to builtin.
-
 --with-freetds-dir=DIR
   Use the freetds library placed under DIR.
-
---enable-lookup
-  Search for freetds through all paths in the PATH environment variable.
-
---enable-cross-build
-  Do cross-build.
 ```
+
+
+## Getting Started
+
+Optionally, Microsoft has done a great job writing some articles on how to get started with SQL Server and Ruby using TinyTDS. Please checkout one of the following posts that match your platform.
+
+* [SQL Server on a Mac](https://www.microsoft.com/en-us/sql-server/developer-get-started/ruby/mac)
+* [SQL Server on RHEL](https://www.microsoft.com/en-us/sql-server/developer-get-started/ruby/rhel)
+* [SQL Server on Ubuntu](https://www.microsoft.com/en-us/sql-server/developer-get-started/ruby/ubuntu)
 
 
 ## FreeTDS Compatibility & Configuration
 
-TinyTDS is developed against FreeTDS 0.82, 0.91 stable, and 0.92 current. Our default and recommended is 0.91 stable. We also test with SQL Server 2000, 2005, 2008, 2014, and Azure. Below are a few QA style notes about installing FreeTDS.
+TinyTDS is developed against FreeTDS 0.95, 0.99, and 1.0 current. Our default and recommended is 1.0. We also test with SQL Server 2008, 2014, and Azure. However, usage of TinyTDS with SQL Server 2000 or 2005 should be just fine. Below are a few QA style notes about installing FreeTDS.
 
 **NOTE:** Windows users of our pre-compiled native gems need not worry about installing FreeTDS and its dependencies.
 
@@ -51,18 +79,18 @@ TinyTDS is developed against FreeTDS 0.82, 0.91 stable, and 0.92 current. Our de
 
 * **OK, I am installing FreeTDS, how do I configure it?** Contrary to what most people think, you do not need to specially configure FreeTDS in any way for client libraries like TinyTDS to use it. About the only requirement is that you compile it with libiconv for proper encoding support. FreeTDS must also be compiled with OpenSSL (or the like) to use it with Azure. See the "Using TinyTDS with Azure" section below for more info.
 
-* **Do I need to configure `--with-tdsver` equal to anything?** Most likely! Technically you should not have too. This is only a default for clients/configs that do not specify what TDS version they want to use. We are currently having issues with passing down a TDS version with the login bit. Till we get that fixed, if you are not using a freetds.conf or a TDSVER environment variable, the make sure to use 7.1 for FreeTDS 0.91 and 8.0 for FreeTDS 0.82.
+* **Do I need to configure `--with-tdsver` equal to anything?** Most likely! Technically you should not have too. This is only a default for clients/configs that do not specify what TDS version they want to use. We are currently having issues with passing down a TDS version with the login bit. Till we get that fixed, if you are not using a freetds.conf or a TDSVER environment variable, then make sure to use 7.1.
 
 * **But I want to use TDS version 7.2 for SQL Server 2005 and up!** TinyTDS uses TDS version 7.1 (previously named 8.0) and fully supports all the data types supported by FreeTDS, this includes `varchar(max)` and `nvarchar(max)`. Technically compiling and using TDS version 7.2 with FreeTDS is not supported. But this does not mean those data types will not work. I know, it's confusing If you want to learn more, read this thread. http://lists.ibiblio.org/pipermail/freetds/2011q3/027306.html
 
-* **I want to configure FreeTDS using `--enable-msdblib` and/or `--enable-sybase-compat` so it works for my database. Cool?** It's a waste of time and totally moot! Client libraries like TinyTDS define their own C structure names where they diverge from Sybase to SQL Server. Technically we use the Sybase structures which does not mean we only work with that database vs SQL Server. These configs are just a low level default for C libraries that do not define what they want. So I repeat, you do not NEED to use any of these, nor will they hurt anything since we control what C structure names we use and this has no affect on what database you use!
+* **I want to configure FreeTDS using `--enable-msdblib` and/or `--enable-sybase-compat` so it works for my database. Cool?** It's a waste of time and totally moot! Client libraries like TinyTDS define their own C structure names where they diverge from Sybase to SQL Server. Technically we use the MSDBLIB structures which does not mean we only work with that database vs Sybase. These configs are just a low level default for C libraries that do not define what they want. So I repeat, you do not NEED to use any of these, nor will they hurt anything since we control what C structure names we use internally!
 
 
 ## Data Types
 
-Our goal is to support every SQL Server data type and covert it to a logical Ruby object. When dates or times are returned, they are instantiated to either `:utc` or `:local` time depending on the query options. All strings are associated the to the connection's encoding and all binary data types are associated to Ruby's `ASCII-8BIT/BINARY` encoding.
+Our goal is to support every SQL Server data type and covert it to a logical Ruby object. When dates or times are returned, they are instantiated to either `:utc` or `:local` time depending on the query options. Only [datetimeoffset] types are excluded. All strings are associated the to the connection's encoding and all binary data types are associated to Ruby's `ASCII-8BIT/BINARY` encoding.
 
-Below is a list of the data types we plan to support using future versions of FreeTDS. They are associated with SQL Server 2008 and up. All unsupported data types below are returned as strings.
+Below is a list of the data types we support when using the 7.3 TDS protocol version. Using a lower protocol version will result in these types being returned as strings.
 
 * [date]
 * [datetime2]
@@ -87,11 +115,24 @@ Creating a new client takes a hash of options. For valid iconv encoding options,
 * :port - Defaults to 1433. Only used if :host is used.
 * :database - The default database to use.
 * :appname - Short string seen in SQL Servers process/activity window.
-* :tds_version - TDS version. Defaults to "71" (7.1) and is not recommended to change!
+* :tds_version - TDS version. Defaults to "7.3".
 * :login_timeout - Seconds to wait for login. Default to 60 seconds.
-* :timeout - Seconds to wait for a response to a SQL command. Default 5 seconds.
+* :timeout - Seconds to wait for a response to a SQL command. Default 5 seconds. Prior to 1.0rc5, FreeTDS was unable to set the timeout on a per-client basis, permitting only a global timeout value. This means that if you're using an older version, the timeout values for all clients will be overwritten each time you instantiate a new `TinyTds::Client` object. If you are using 1.0rc5 or later, all clients will have an independent timeout setting as you'd expect.
 * :encoding - Any valid iconv value like CP1251 or ISO-8859-1. Default UTF-8.
 * :azure - Pass true to signal that you are connecting to azure.
+* :contained - Pass true to signal that you are connecting with a contained database user.
+* :use_utf16 - Instead of using UCS-2 for database wide character encoding use UTF-16. Newer Windows versions use this encoding instead of UCS-2. Default true.
+* :message_handler - Pass in a `call`-able object such as a `Proc` or a method to receive info messages from the database. It should have a single parameter, which will be a `TinyTds::Error` object representing the message. For example:
+
+```ruby
+opts = ... # host, username, password, etc
+opts[:message_handler] = Proc.new { |m| puts m.message }
+client = TinyTds::Client.new opts
+# => Changed database context to 'master'.
+# => Changed language setting to us_english.
+client.execute("print 'hello world!'").do
+# => hello world!
+```
 
 Use the `#active?` method to determine if a connection is good. The implementation of this method may change but it should always guarantee that a connection is good. Current it checks for either a closed or dead connection.
 
@@ -154,6 +195,16 @@ You can cancel a result object's data from being loading by the server.
 
 ```ruby
 result = client.execute("SELECT * FROM [super_big_table]")
+result.cancel
+```
+
+You can use results cancelation in conjunction with results lazy loading, no problem.
+
+```ruby
+result = client.execute("SELECT * FROM [super_big_table]")
+result.each_with_index do |row, i|
+  break if row > 10
+end
 result.cancel
 ```
 
@@ -278,6 +329,14 @@ By default row caching is turned on because the SQL Server adapter for ActiveRec
 TinyTDS takes an opinionated stance on how we handle encoding errors. First, we treat errors differently on reads vs. writes. Our opinion is that if you are reading bad data due to your client's encoding option, you would rather just find `?` marks in your strings vs being blocked with exceptions. This is how things wold work via ODBC or SMS. On the other hand, writes will raise an exception. In this case we raise the SYBEICONVO/2402 error message which has a description of `Error converting characters into server's character set. Some character(s) could not be converted.`. Even though the severity of this message is only a `4` and TinyTDS will automatically strip/ignore unknown characters, we feel you should know that you are inserting bad encodings. In this way, a transaction can be rolled back, etc. Remember, any database write that has bad characters due to the client encoding will still be written to the database, but it is up to you rollback said write if needed. Most ORMs like ActiveRecord handle this scenario just fine.
 
 
+## Binstubs
+
+The TinyTDS gem uses binstub wrappers which mirror compiled [FreeTDS Utilities](http://www.freetds.org/userguide/usefreetds.htm) binaries. These native executables are usually installed at the system level when installing FreeTDS. However, when using MiniPortile to install TinyTDS as we do with Windows binaries, these binstubs will find and prefer local gem `exe` directory executables. These are the following binstubs we wrap.
+
+* tsql - Used to test connections and debug compile time settings.
+* defncopy - Used to dump schema structures.
+
+
 ## Using TinyTDS With Rails & The ActiveRecord SQL Server adapter.
 
 TinyTDS is the default connection mode for the SQL Server adapter in versions 3.1 or higher. The SQL Server adapter can be found using the links below.
@@ -287,43 +346,68 @@ TinyTDS is the default connection mode for the SQL Server adapter in versions 3.
 
 ## Using TinyTDS with Azure
 
-TinyTDS is fully tested with the Azure platform. You must set the `azure: true` connection option when connecting. This is needed to specify the default database name in the login packet since Azure has no notion of `USE [database]`. You must use the latest FreeTDS 0.91. FreeTDS must be compiled with OpenSSL too.
+TinyTDS is fully tested with the Azure platform. You must set the `azure: true` connection option when connecting. This is needed to specify the default database name in the login packet since Azure has no notion of `USE [database]`. FreeTDS must be compiled with OpenSSL too.
 
 **IMPORTANT**: Do not use `username@server.database.windows.net` for the username connection option! You must use the shorter `username@server` instead!
 
-We recommend the following settings when using TinyTDS with Azure. These are the same settings used in the ActiveRecord SQL Server adapter.
+Also, please read the [Azure SQL Database General Guidelines and Limitations](https://msdn.microsoft.com/en-us/library/ee336245.aspx) MSDN article to understand the differences. Specifically, the connection constraints section!
+
+## Connection Settings
+
+A DBLIB connection does not have the same default SET options for a standard SMS SQL Server connection. Hence, we recommend the following options post establishing your connection.
+
+#### SQL Server
+
+```sql
+SET ANSI_DEFAULTS ON
+
+SET QUOTED_IDENTIFIER ON
+SET CURSOR_CLOSE_ON_COMMIT OFF
+SET IMPLICIT_TRANSACTIONS OFF
+SET TEXTSIZE 2147483647
+SET CONCAT_NULL_YIELDS_NULL ON
+```
+
+#### Azure
 
 ```sql
 SET ANSI_NULLS ON
-SET CURSOR_CLOSE_ON_COMMIT OFF
 SET ANSI_NULL_DFLT_ON ON
-SET IMPLICIT_TRANSACTIONS OFF
 SET ANSI_PADDING ON
-SET QUOTED_IDENTIFIER ON
 SET ANSI_WARNINGS ON
+
+SET QUOTED_IDENTIFIER ON
+SET CURSOR_CLOSE_ON_COMMIT OFF
+SET IMPLICIT_TRANSACTIONS OFF
+SET TEXTSIZE 2147483647
+SET CONCAT_NULL_YIELDS_NULL ON
 ```
 
-Also, please read the [Azure SQL Database General Guidelines and Limitations](https://msdn.microsoft.com/en-us/library/ee336245.aspx) MSDN article to understand the differences. Specifically, the connection constraints section!
+
+## Thread Safety
+
+TinyTDS must be used with a connection pool for thread safety. If you use ActiveRecord or the [Sequel](https://github.com/jeremyevans/sequel) gem this is done for you. However, if you are using TinyTDS on your own, we recommend using the ConnectionPool gem when using threads:
+
+* ConnectionPool Gem - https://github.com/mperham/connection_pool
+
+Please read our [thread_test.rb](https://github.com/rails-sqlserver/tiny_tds/blob/master/test/thread_test.rb) file for details on how we test its usage.
 
 
-## Using MiniPortile
+## Emoji Support 😍
 
-MiniPortile is a minimalistic implementation of a port/recipe system. <https://github.com/luislavena/mini_portile>
+This is possible using FreeTDS version 0.95 or higher. You must use the `use_utf16` login option or add the following config to your `freetds.conf` in either the global section or a specfic dataserver. If you are on Windows, the default location for your conf file will be in `C:\Sites`.
 
-The TinyTDS project uses MiniPortile so that we can easily install a local version of FreeTDS and supporting libraries to link against when building a test version of TinyTDS. This same system is also used when installing TinyTDS with Rubygems and building native extensions. It is possible to build TinyTDS with a specific version of FreeTDS using the `TINYTDS_FREETDS_VERSION` environment variable. Here are some exampbles of possible values.
-
+```ini
+[global]
+  use utf-16 = true
 ```
-$ rake TINYTDS_FREETDS_VERSION='0.82' -- --disable-system-freetds --disable-system-iconv
-$ rake TINYTDS_FREETDS_VERSION='0.91' -- --disable-system-freetds --disable-system-iconv
-$ rake TINYTDS_FREETDS_VERSION='0.92' -- --disable-system-freetds --disable-system-iconv
-```
 
-To find out more about the FreeTDS release system [visit this thread](http://lists.ibiblio.org/pipermail/freetds/2012q1/027756.html) on their mailing list. You can also browse thier FTP server [ftp://ftp.astron.com/pub/freetds/](ftp://ftp.astron.com/pub/freetds/) for version number strings.
+The default is true and since FreeTDS v1.0 would do this as well.
 
 
 ## Compiling Gems for Windows
 
-For the convenience of Windows users, TinyTDS ships pre-compiled gems for Ruby 2.0, 2.1 and 2.2 on Windows. In order to generate these gems, [rake-compiler-dock](https://github.com/rake-compiler/rake-compiler-dock) is used. This project provides a [Docker image](https://registry.hub.docker.com/u/larskanis/rake-compiler-dock/) with rvm, cross-compilers and a number of different target versions of Ruby.
+For the convenience of Windows users, TinyTDS ships pre-compiled gems for Ruby 2.0, 2.1, 2.2, and 2.3 on Windows. In order to generate these gems, [rake-compiler-dock](https://github.com/rake-compiler/rake-compiler-dock) is used. This project provides a [Docker image](https://registry.hub.docker.com/u/larskanis/rake-compiler-dock/) with rvm, cross-compilers and a number of different target versions of Ruby.
 
 Run the following rake task to compile the gems for Windows. This will check the availability of [Docker](https://www.docker.com/) (and boot2docker on Windows or OS-X) and will give some advice for download and installation. When docker is running, it will download the docker image (once-only) and start the build:
 
@@ -336,44 +420,59 @@ The compiled gems will exist in `./pkg` directory.
 
 ## Development & Testing
 
-First make sure your local database has a `[tinytdstest]` database with a owner login named `[tinytds]` having no password. The following SQL run via the `sa` account should set that up for you.
+First, clone the repo using the command line or your Git GUI of choice.
+
+```shell
+$ git clone git@github.com:rails-sqlserver/tiny_tds.git
+```
+
+After that, the quickest way to get setup for development is to use [Docker](https://www.docker.com/). Assuming you have [downloaded docker](https://www.docker.com/products/docker) for your platform and you have , you can run our test setup script.
+
+```shell
+$ ./test/bin/setup.sh
+```
+
+This will download our SQL Server for Linux Docker image based from [microsoft/mssql-server-linux/](https://hub.docker.com/r/microsoft/mssql-server-linux/). Our image already has the `[tinytdstest]` DB and `tinytds` users created. Basically, it does the following.
+
+```shell
+$ docker pull metaskills/mssql-server-linux-tinytds
+$ docker run -p 1433:1433 -d metaskills/mssql-server-linux-tinytds
+```
+
+If you are using your own database. Make sure to run these SQL commands as SA to get the test database and user installed.
 
 ```sql
 CREATE DATABASE [tinytdstest];
-GO
-CREATE LOGIN [tinytds] WITH PASSWORD = '', CHECK_POLICY = OFF, DEFAULT_DATABASE = [tinytdstest];
-GO
-USE [tinytdstest];
-CREATE USER [tinytds] FOR LOGIN [tinytds];
-GO
-EXEC sp_addrolemember N'db_owner', N'tinytds';
-GO
 ```
 
-We use bundler for development. Simply run `bundle install` then `rake` to build the gem and run the unit tests. Before running the test rake task, you may need to define a pair of environment variables that help the client connect to your specific FreeTDS database server name and which schema (2000, 2005, 2008, 2014, Azure or Sybase ASE) to use. For example:
+```sql
+CREATE LOGIN [tinytds] WITH PASSWORD = '', CHECK_POLICY = OFF, DEFAULT_DATABASE = [tinytdstest];
+USE [tinytdstest];
+CREATE USER [tinytds] FOR LOGIN [tinytds];
+EXEC sp_addrolemember N'db_owner', N'tinytds';
+```
+
+From here you can build and run tests against an installed version of FreeTDS.
+
+```shell
+$ bundle install
+$ bundle exec rake
+```
+
+Examples us using enviornment variables to customize the test task.
 
 ```
 $ rake TINYTDS_UNIT_DATASERVER=mydbserver
-  or
 $ rake TINYTDS_UNIT_DATASERVER=mydbserver TINYTDS_SCHEMA=sqlserver_2008
-  or
 $ rake TINYTDS_UNIT_HOST=mydb.host.net TINYTDS_SCHEMA=sqlserver_azure
-  or
 $ rake TINYTDS_UNIT_HOST=mydb.host.net TINYTDS_UNIT_PORT=5000 TINYTDS_SCHEMA=sybase_ase
 ```
-
-If you do not want to use MiniPortile to compile a local project version of FreeTDS and instead use your local system version, use the `TINYTDS_SKIP_PORTS` environment variable. This will ignore any port tasks and will instead build and link to your system's FreeTDS installation as a normal gem install would.
-
-```
-$ rake TINYTDS_SKIP_PORTS=1
-```
-
 
 ## Help & Support
 
 * Github Source: http://github.com/rails-sqlserver/tiny_tds
 * Github Issues: http://github.com/rails-sqlserver/tiny_tds/issues
-* Google Group: http://groups.google.com/group/rails-sqlserver-adapter
+* Gitter Chat: https://gitter.im/rails-sqlserver/activerecord-sqlserver-adapter
 * IRC Room: #rails-sqlserver on irc.freenode.net
 
 
@@ -394,4 +493,3 @@ My name is Ken Collins and I currently maintain the SQL Server adapter for Activ
 ## License
 
 TinyTDS is Copyright (c) 2010-2015 Ken Collins, <ken@metaskills.net> and Will Bond (Veracross LLC) <wbond@breuer.com>. It is distributed under the MIT license. Windows binaries contain pre-compiled versions of FreeTDS <http://www.freetds.org/> which is licensed under the GNU LGPL license at <http://www.gnu.org/licenses/lgpl-2.0.html>
-

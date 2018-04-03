@@ -3,9 +3,9 @@
 
 VALUE cTinyTdsClient;
 extern VALUE mTinyTds, cTinyTdsError;
-static ID sym_username, sym_password, sym_dataserver, sym_database, sym_appname, sym_tds_version, sym_login_timeout, sym_timeout, sym_encoding, sym_azure;
+static ID sym_username, sym_password, sym_dataserver, sym_database, sym_appname, sym_tds_version, sym_login_timeout, sym_timeout, sym_encoding, sym_azure, sym_contained, sym_use_utf16, sym_message_handler;
 static ID intern_source_eql, intern_severity_eql, intern_db_error_number_eql, intern_os_error_number_eql;
-static ID intern_new, intern_dup, intern_transpose_iconv_encoding, intern_local_offset, intern_gsub;
+static ID intern_new, intern_dup, intern_transpose_iconv_encoding, intern_local_offset, intern_gsub, intern_call;
 VALUE opt_escape_regex, opt_escape_dblquote;
 
 
@@ -24,7 +24,8 @@ VALUE opt_escape_regex, opt_escape_dblquote;
 
 // Lib Backend (Helpers)
 
-VALUE rb_tinytds_raise_error(DBPROCESS *dbproc, int cancel, char *error, char *source, int severity, int dberr, int oserr) {
+VALUE rb_tinytds_raise_error(DBPROCESS *dbproc, int is_message, int cancel, const char *error, const char *source, int severity, int dberr, int oserr) {
+  VALUE e;
   GET_CLIENT_USERDATA(dbproc);
   if (cancel && !dbdead(dbproc) && userdata && !userdata->closed) {
     userdata->dbsqlok_sent = 1;
@@ -32,7 +33,7 @@ VALUE rb_tinytds_raise_error(DBPROCESS *dbproc, int cancel, char *error, char *s
     userdata->dbcancel_sent = 1;
     dbcancel(dbproc);
   }
-  VALUE e = rb_exc_new2(cTinyTdsError, error);
+  e = rb_exc_new2(cTinyTdsError, error);
   rb_funcall(e, intern_source_eql, 1, rb_str_new2(source));
   if (severity)
     rb_funcall(e, intern_severity_eql, 1, INT2FIX(severity));
@@ -40,6 +41,16 @@ VALUE rb_tinytds_raise_error(DBPROCESS *dbproc, int cancel, char *error, char *s
     rb_funcall(e, intern_db_error_number_eql, 1, INT2FIX(dberr));
   if (oserr)
     rb_funcall(e, intern_os_error_number_eql, 1, INT2FIX(oserr));
+
+  if (severity <= 10 && is_message) {
+    VALUE message_handler = userdata && userdata->message_handler ? userdata->message_handler : Qnil;
+    if (message_handler && message_handler != Qnil && rb_respond_to(message_handler, intern_call) != 0) {
+      rb_funcall(message_handler, intern_call, 1, e);
+    }
+
+    return Qnil;
+  }
+
   rb_exc_raise(e);
   return Qnil;
 }
@@ -48,12 +59,12 @@ VALUE rb_tinytds_raise_error(DBPROCESS *dbproc, int cancel, char *error, char *s
 // Lib Backend (Memory Management & Handlers)
 
 int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr) {
-  static char *source = "error";
-  GET_CLIENT_USERDATA(dbproc);
-
+  static const char *source = "error";
   /* Everything should cancel by default */
   int return_value = INT_CANCEL;
   int cancel = 0;
+
+  GET_CLIENT_USERDATA(dbproc);
 
   /* These error codes are documented in include/sybdb.h in FreeTDS */
   switch(dberr) {
@@ -69,7 +80,7 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
 
     case SYBEICONVO:
       dbfreebuf(dbproc);
-      break;
+      return return_value;
 
     case SYBETIME:
       /*
@@ -90,9 +101,11 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
       break;
 
     case SYBEBTOK:
+      cancel = 1;
       break;
 
     case SYBEDDNE:
+      cancel = 1;
       break;
   }
 
@@ -116,9 +129,10 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
     generic message can be sent.
     */
     if (!userdata->nonblocking_error.is_set) {
+      userdata->nonblocking_error.is_message = 0;
       userdata->nonblocking_error.cancel = cancel;
-      strcpy(userdata->nonblocking_error.error, dberrstr);
-      strcpy(userdata->nonblocking_error.source, source);
+      strncpy(userdata->nonblocking_error.error, dberrstr, ERROR_MSG_SIZE);
+      strncpy(userdata->nonblocking_error.source, source, ERROR_MSG_SIZE);
       userdata->nonblocking_error.severity = severity;
       userdata->nonblocking_error.dberr = dberr;
       userdata->nonblocking_error.oserr = oserr;
@@ -126,34 +140,37 @@ int tinytds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, c
     }
 
   } else {
-    rb_tinytds_raise_error(dbproc, cancel, dberrstr, source, severity, dberr, oserr);
+    rb_tinytds_raise_error(dbproc, 0, cancel, dberrstr, source, severity, dberr, oserr);
   }
 
   return return_value;
 }
 
 int tinytds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *srvname, char *procname, int line) {
-  static char *source = "message";
+  static const char *source = "message";
   GET_CLIENT_USERDATA(dbproc);
-  if (severity > 10) {
-    // See tinytds_err_handler() for info about why we do this
-    if (userdata && userdata->nonblocking) {
-      if (!userdata->nonblocking_error.is_set) {
-        userdata->nonblocking_error.cancel = 1;
-        strcpy(userdata->nonblocking_error.error, msgtext);
-        strcpy(userdata->nonblocking_error.source, source);
-        userdata->nonblocking_error.severity = severity;
-        userdata->nonblocking_error.dberr = msgno;
-        userdata->nonblocking_error.oserr = msgstate;
-        userdata->nonblocking_error.is_set = 1;
-      }
-      if (!dbdead(dbproc) && !userdata->closed) {
-        dbcancel(dbproc);
-        userdata->dbcancel_sent = 1;
-      }
-    } else {
-      rb_tinytds_raise_error(dbproc, 1, msgtext, source, severity, msgno, msgstate);
+
+  int is_message_an_error = severity > 10 ? 1 : 0;
+
+  // See tinytds_err_handler() for info about why we do this
+  if (userdata && userdata->nonblocking) {
+    if (!userdata->nonblocking_error.is_set) {
+      userdata->nonblocking_error.is_message = !is_message_an_error;
+      userdata->nonblocking_error.cancel = is_message_an_error;
+      strncpy(userdata->nonblocking_error.error, msgtext, ERROR_MSG_SIZE);
+      strncpy(userdata->nonblocking_error.source, source, ERROR_MSG_SIZE);
+      userdata->nonblocking_error.severity = severity;
+      userdata->nonblocking_error.dberr = msgno;
+      userdata->nonblocking_error.oserr = msgstate;
+      userdata->nonblocking_error.is_set = 1;
     }
+
+    if (is_message_an_error && !dbdead(dbproc) && !userdata->closed) {
+      dbcancel(dbproc);
+      userdata->dbcancel_sent = 1;
+    }
+  } else {
+    rb_tinytds_raise_error(dbproc, !is_message_an_error, is_message_an_error, msgtext, source, severity, msgno, msgstate);
   }
   return 0;
 }
@@ -238,6 +255,8 @@ static VALUE rb_tinytds_sqlsent(VALUE self) {
 }
 
 static VALUE rb_tinytds_execute(VALUE self, VALUE sql) {
+  VALUE result;
+
   GET_CLIENT_WRAPPER(self);
   rb_tinytds_client_reset_userdata(cwrap->userdata);
   REQUIRE_OPEN_CLIENT(cwrap);
@@ -247,12 +266,14 @@ static VALUE rb_tinytds_execute(VALUE self, VALUE sql) {
     return Qfalse;
   }
   cwrap->userdata->dbsql_sent = 1;
-  VALUE result = rb_tinytds_new_result_obj(cwrap);
+  result = rb_tinytds_new_result_obj(cwrap);
   rb_iv_set(result, "@query_options", rb_funcall(rb_iv_get(self, "@query_options"), intern_dup, 0));
-  GET_RESULT_WRAPPER(result);
-  rwrap->local_offset = rb_funcall(cTinyTdsClient, intern_local_offset, 0);
-  rwrap->encoding = cwrap->encoding;
-  return result;
+  {
+    GET_RESULT_WRAPPER(result);
+    rwrap->local_offset = rb_funcall(cTinyTdsClient, intern_local_offset, 0);
+    rwrap->encoding = cwrap->encoding;
+    return result;
+  }
 }
 
 static VALUE rb_tinytds_charset(VALUE self) {
@@ -266,9 +287,11 @@ static VALUE rb_tinytds_encoding(VALUE self) {
 }
 
 static VALUE rb_tinytds_escape(VALUE self, VALUE string) {
-  Check_Type(string, T_STRING);
+  VALUE new_string;
   GET_CLIENT_WRAPPER(self);
-  VALUE new_string = rb_funcall(string, intern_gsub, 2, opt_escape_regex, opt_escape_dblquote);
+
+  Check_Type(string, T_STRING);
+  new_string = rb_funcall(string, intern_gsub, 2, opt_escape_regex, opt_escape_dblquote);
   rb_enc_associate(new_string, cwrap->encoding);
   return new_string;
 }
@@ -288,20 +311,15 @@ static VALUE rb_tinytds_identity_sql(VALUE self) {
   return rb_str_new2(cwrap->identity_insert_sql);
 }
 
-static VALUE rb_tinytds_freetds_nine_one_or_higher(VALUE self) {
-  #ifdef DBSETLDBNAME
-    return Qtrue;
-  #else
-    return Qfalse;
-  #endif
-}
 
 
 // TinyTds::Client (protected)
 
 static VALUE rb_tinytds_connect(VALUE self, VALUE opts) {
   /* Parsing options hash to local vars. */
-  VALUE user, pass, dataserver, database, app, version, ltimeout, timeout, charset, azure;
+  VALUE user, pass, dataserver, database, app, version, ltimeout, timeout, charset, azure, contained, use_utf16;
+  GET_CLIENT_WRAPPER(self);
+
   user = rb_hash_aref(opts, sym_username);
   pass = rb_hash_aref(opts, sym_password);
   dataserver = rb_hash_aref(opts, sym_dataserver);
@@ -312,6 +330,9 @@ static VALUE rb_tinytds_connect(VALUE self, VALUE opts) {
   timeout = rb_hash_aref(opts, sym_timeout);
   charset = rb_hash_aref(opts, sym_encoding);
   azure = rb_hash_aref(opts, sym_azure);
+  contained = rb_hash_aref(opts, sym_contained);
+  use_utf16 = rb_hash_aref(opts, sym_use_utf16);
+  cwrap->userdata->message_handler = rb_hash_aref(opts, sym_message_handler);
   /* Dealing with options. */
   if (dbinit() == FAIL) {
     rb_raise(cTinyTdsError, "failed dbinit() function");
@@ -319,7 +340,6 @@ static VALUE rb_tinytds_connect(VALUE self, VALUE opts) {
   }
   dberrhandle(tinytds_err_handler);
   dbmsghandle(tinytds_msg_handler);
-  GET_CLIENT_WRAPPER(self);
   cwrap->login = dblogin();
   if (!NIL_P(version))
     dbsetlversion(cwrap->login, NUM2INT(version));
@@ -331,29 +351,51 @@ static VALUE rb_tinytds_connect(VALUE self, VALUE opts) {
     dbsetlapp(cwrap->login, StringValueCStr(app));
   if (!NIL_P(ltimeout))
     dbsetlogintime(NUM2INT(ltimeout));
-  if (!NIL_P(timeout))
-    dbsettime(NUM2INT(timeout));
   if (!NIL_P(charset))
     DBSETLCHARSET(cwrap->login, StringValueCStr(charset));
-  if (!NIL_P(database) && (azure == Qtrue)) {
-    #ifdef DBSETLDBNAME
-      DBSETLDBNAME(cwrap->login, StringValueCStr(database));
-    #else
-      rb_warn("TinyTds: Azure connections not supported in this version of FreeTDS.\n");
-    #endif
+  if (!NIL_P(database)) {
+    if (azure == Qtrue || contained == Qtrue) {
+      #ifdef DBSETLDBNAME
+        DBSETLDBNAME(cwrap->login, StringValueCStr(database));
+      #else
+        if (azure == Qtrue) {
+          rb_warn("TinyTds: :azure option is not supported in this version of FreeTDS.\n");
+        }
+        if (contained == Qtrue) {
+          rb_warn("TinyTds: :contained option is not supported in this version of FreeTDS.\n");
+        }
+      #endif
+    }
   }
+  #ifdef DBSETUTF16
+    if (use_utf16 == Qtrue)  { DBSETLUTF16(cwrap->login, 1); }
+    if (use_utf16 == Qfalse) { DBSETLUTF16(cwrap->login, 0); }
+  #else
+    if (use_utf16 == Qtrue || use_utf16 == Qfalse) {
+      rb_warn("TinyTds: :use_utf16 option not supported in this version of FreeTDS.\n");
+    }
+  #endif
+
   cwrap->client = dbopen(cwrap->login, StringValueCStr(dataserver));
   if (cwrap->client) {
+    VALUE transposed_encoding, timeout_string;
+
     cwrap->closed = 0;
     cwrap->charset = charset;
     if (!NIL_P(version))
       dbsetversion(NUM2INT(version));
+    if (!NIL_P(timeout)) {
+      timeout_string = rb_sprintf("%"PRIsVALUE"", timeout);
+      if (dbsetopt(cwrap->client, DBSETTIME, StringValueCStr(timeout_string), 0) == FAIL) {
+        dbsettime(NUM2INT(timeout));
+      }
+    }
     dbsetuserdata(cwrap->client, (BYTE*)cwrap->userdata);
     cwrap->userdata->closed = 0;
     if (!NIL_P(database) && (azure != Qtrue)) {
       dbuse(cwrap->client, StringValueCStr(database));
     }
-    VALUE transposed_encoding = rb_funcall(cTinyTdsClient, intern_transpose_iconv_encoding, 1, charset);
+    transposed_encoding = rb_funcall(cTinyTdsClient, intern_transpose_iconv_encoding, 1, charset);
     cwrap->encoding = rb_enc_find(StringValueCStr(transposed_encoding));
     if (dbtds(cwrap->client) <= 7) {
       cwrap->identity_insert_sql = "SELECT CAST(@@IDENTITY AS bigint) AS Ident";
@@ -383,7 +425,6 @@ void init_tinytds_client() {
   rb_define_method(cTinyTdsClient, "escape", rb_tinytds_escape, 1);
   rb_define_method(cTinyTdsClient, "return_code", rb_tinytds_return_code, 0);
   rb_define_method(cTinyTdsClient, "identity_sql", rb_tinytds_identity_sql, 0);
-  rb_define_method(cTinyTdsClient, "freetds_091_or_higer?", rb_tinytds_freetds_nine_one_or_higher, 0);
   /* Define TinyTds::Client Protected Methods */
   rb_define_protected_method(cTinyTdsClient, "connect", rb_tinytds_connect, 1);
   /* Symbols For Connect */
@@ -397,6 +438,9 @@ void init_tinytds_client() {
   sym_timeout = ID2SYM(rb_intern("timeout"));
   sym_encoding = ID2SYM(rb_intern("encoding"));
   sym_azure = ID2SYM(rb_intern("azure"));
+  sym_contained = ID2SYM(rb_intern("contained"));
+  sym_use_utf16 = ID2SYM(rb_intern("use_utf16"));
+  sym_message_handler = ID2SYM(rb_intern("message_handler"));
   /* Intern TinyTds::Error Accessors */
   intern_source_eql = rb_intern("source=");
   intern_severity_eql = rb_intern("severity=");
@@ -408,6 +452,7 @@ void init_tinytds_client() {
   intern_transpose_iconv_encoding = rb_intern("transpose_iconv_encoding");
   intern_local_offset = rb_intern("local_offset");
   intern_gsub = rb_intern("gsub");
+  intern_call = rb_intern("call");
   /* Escape Regexp Global */
   opt_escape_regex = rb_funcall(rb_cRegexp, intern_new, 1, rb_str_new2("\\\'"));
   opt_escape_dblquote = rb_str_new2("''");
