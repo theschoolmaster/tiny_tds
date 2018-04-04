@@ -72,11 +72,11 @@ module TinyTds
     end
 
     def connection_options(options={})
-      username = (sqlserver_azure? ? ENV['TINYTDS_UNIT_AZURE_USER'] : ENV['TINYTDS_UNIT_USER']) || 'tinytds'
-      password = (sqlserver_azure? ? ENV['TINYTDS_UNIT_AZURE_PASS'] : ENV['TINYTDS_UNIT_PASS']) || ''
+      username = sqlserver_azure? ? ENV['TINYTDS_UNIT_AZURE_USER'] : ENV['TINYTDS_UNIT_USER'] || 'tinytds'
+      password = sqlserver_azure? ? ENV['TINYTDS_UNIT_AZURE_PASS'] : ENV['TINYTDS_UNIT_PASS'] || ''
       { :dataserver    => sqlserver_azure? ? nil : ENV['TINYTDS_UNIT_DATASERVER'],
-        :host          => ENV['TINYTDS_UNIT_HOST'] || 'localhost',
-        :port          => ENV['TINYTDS_UNIT_PORT'] || '1433',
+        :host          => ENV['TINYTDS_UNIT_HOST'],
+        :port          => ENV['TINYTDS_UNIT_PORT'],
         :tds_version   => ENV['TINYTDS_UNIT_VERSION'],
         :username      => username,
         :password      => password,
@@ -89,7 +89,7 @@ module TinyTds
     end
 
     def connection_timeout
-      sqlserver_azure? ? 20 : 8
+      sqlserver_azure? ? 15 : 5
     end
 
     def assert_client_works(client)
@@ -138,21 +138,13 @@ module TinyTds
       RUBY_DESCRIPTION =~ /rubinius/i
     end
 
-    def ruby_windows?
-      RbConfig::CONFIG['host_os'] =~ /ming/
-    end
-
-    def ruby_darwin?
-      RbConfig::CONFIG['host_os'] =~ /darwin/
-    end
-
     def load_current_schema
       loader = new_connection
       schema_file = File.expand_path File.join(File.dirname(__FILE__), 'schema', "#{current_schema}.sql")
       schema_sql = File.open(schema_file,"rb:UTF-8") { |f|f.read }
-      loader.execute(drop_sql).do
-      loader.execute(schema_sql).do
-      loader.execute(sp_sql).do
+      loader.execute(drop_sql).each
+      loader.execute(schema_sql).cancel
+      loader.execute(sp_sql).cancel
       loader.close
       true
     end
@@ -211,6 +203,7 @@ module TinyTds
     ensure
       client.execute("ROLLBACK TRANSACTION").do
     end
+
 
   end
 end

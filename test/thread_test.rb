@@ -41,7 +41,6 @@ class ThreadTest < TinyTds::TestCase
     end
 
     it 'should not crash on error in parallel' do
-      skip if sqlserver_azure?
       threads = []
       @numthreads.times do |i|
         threads << Thread.new do
